@@ -1,9 +1,13 @@
 use anyhow::Context as _;
-use aya_build::{build_ebpf, Toolchain};
+use aya_build::{build_ebpf, Package, Toolchain};
 
 fn main() -> anyhow::Result<()> {
-    // Construct Package from &str so it matches aya-build 0.2.0 API
-    let package: aya_build::Package = "ai-ida-ebpf".into();
+    let package = Package {
+        name: "ai-ida-ebpf",
+        root_dir: "../ai-ida-ebpf",
+        features: &[],
+        no_default_features: false,
+    };
 
     build_ebpf([package], Toolchain::default())
         .context("failed to build eBPF package")?;
