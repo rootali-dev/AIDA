@@ -13,15 +13,30 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "05-Journal/DevLogs/2026-08-Phase2-Start.md",
+                "file": "01-Architecture/Core-Architecture.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "2026-08-Phase2-Start"
+              "title": "Core-Architecture"
+            }
+          },
+          {
+            "id": "b31b49c9e9a5a50e",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "04-Development-Board/Task-Tracker.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Task-Tracker"
             }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -222,29 +237,29 @@
       "webpage-html-export:Export as HTML": false
     }
   },
-  "active": "c10e52ea0dead384",
+  "active": "b31b49c9e9a5a50e",
   "lastOpenFiles": [
-    "02-Modules-Spec/MOD-06-CLI-Client.md",
-    "02-Modules-Spec/MOD-05-Daemon-Core.md",
-    "02-Modules-Spec/MOD-04-RingBuf-Telemetry.md",
-    "02-Modules-Spec/MOD-03-Reputation-Trie.md",
-    "02-Modules-Spec/MOD-02-Static-ACL.md",
-    "02-Modules-Spec/MOD-01-Safe-Parser.md",
-    "01-Architecture/Memory-Layout-24B.md",
-    "01-Architecture/Daemon-CLI-IPC.md",
     "01-Architecture/Core-Architecture.md",
-    "📊 Dashboard.md",
-    "Dashboard.md",
-    "05-Journal/DevLogs/2026-08-Phase2-Start.md",
-    "05-Journal/benchmarks",
-    "05-Journal/DevLogs",
-    "05-Journal",
     "04-Development-Board/Task-Tracker.md",
     "04-Development-Board/Sprint-Plan.md",
-    "04-Development-Board",
+    "05-Journal/DevLogs/2026-08-Phase2-Start.md",
+    "Dashboard.md",
+    "02-Modules-Spec/MOD-01-Safe-Parser.md",
+    "02-Modules-Spec/MOD-02-Static-ACL.md",
+    "02-Modules-Spec/MOD-03-Reputation-Trie.md",
+    "02-Modules-Spec/MOD-04-RingBuf-Telemetry.md",
+    "02-Modules-Spec/MOD-05-Daemon-Core.md",
+    "02-Modules-Spec/MOD-06-CLI-Client.md",
     "03-ADR/ADR-0003-Daemon-Client.md",
     "03-ADR/ADR-0002-LRU-Map-Type.md",
     "03-ADR/ADR-0001-Pipeline-Order.md",
+    "01-Architecture/Daemon-CLI-IPC.md",
+    "01-Architecture/Memory-Layout-24B.md",
+    "📊 Dashboard.md",
+    "05-Journal/benchmarks",
+    "05-Journal/DevLogs",
+    "05-Journal",
+    "04-Development-Board",
     "03-ADR",
     "02-Modules-Spec",
     "01-Architecture",
