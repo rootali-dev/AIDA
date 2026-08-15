@@ -1,36 +1,43 @@
 [workspace]
-resolver = "2"
 members = [
     "ai-ida",
     "ai-ida-common",
     "ai-ida-ebpf",
 ]
-default-members = ["ai-ida", "ai-ida-common"]
+default-members = ["ai-ida"]
+resolver = "2"
 
 [workspace.package]
+version = "0.1.0"
+edition = "2021"
 license = "MIT OR Apache-2.0"
-edition = "2024"
+authors = ["AI-IDA Developers"]
 
 [workspace.dependencies]
-aya = { version = "0.14.0", default-features = false }
-aya-build = { version = "0.2.0", default-features = false }
-aya-ebpf = { version = "0.2.1", default-features = false }
-aya-log = { version = "0.3.0", default-features = false }
-aya-log-ebpf = { version = "0.2.0", default-features = false }
+anyhow = "1"
+aya = "0.13.1"
+aya-build = "0.2.0"
+aya-log = "0.2.1"
+aya-ebpf = "0.2.1"
+aya-log-ebpf = "0.2.0"
+cargo_metadata = "0.23"
+clap = { version = "4", features = ["derive"] }
+env_logger = "0.11"
+libc = "0.2"
+log = "0.4"
+tokio = { version = "1", features = ["full"] }
+which = "6"
 
-anyhow = { version = "1", default-features = false }
-cargo_metadata = { version = "0.23.0", default-features = false }
-# `std` feature is currently required to build `clap`.
-#
-# See https://github.com/clap-rs/clap/blob/61f5ee5/clap_builder/src/lib.rs#L15.
-clap = { version = "4.5.20", default-features = false, features = ["std"] }
-env_logger = { version = "0.11.5", default-features = false }
-libc = { version = "0.2.159", default-features = false }
-log = { version = "0.4.22", default-features = false }
-tokio = { version = "1.40.0", default-features = false }
-which = { version = "6.0.0", default-features = false }
+[profile.dev]
+opt-level = 3
+debug = true
+debug-assertions = false
+overflow-checks = false
+lto = true
 
-[profile.release.package.ai-ida-ebpf]
-debug = 2
-codegen-units = 1
-strip = false
+[profile.release]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true

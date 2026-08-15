@@ -1,9 +1,10 @@
-#![no_std]
+//! ai-ida-common/src/lib.rs
+//! قرارداد مشترک حافظه میان کرنل و یوزراسپیس.
 
-#[repr(C)]
-#[derive(Copy, Clone)]
-pub struct RateBucket {
-    pub tokens: u32,
-    pub _pad: u32,          // pads to 16B -> 4 buckets/cache-line, no false sharing across slots
-    pub last_refill_ns: u64,
-}
+#![cfg_attr(not(feature = "user"), no_std)]
+
+pub mod rules;
+pub mod telemetry;
+
+pub use rules::*;
+pub use telemetry::*;
