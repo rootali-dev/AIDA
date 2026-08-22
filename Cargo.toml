@@ -1,10 +1,10 @@
 [workspace]
 members = [
-    "ai-ida",
-    "ai-ida-common",
-    "ai-ida-ebpf",
+    "ebpf-loader",
+    "common",
+    "kernel-space",
 ]
-default-members = ["ai-ida"]
+default-members = ["ebpf-loader"]
 resolver = "2"
 
 [workspace.package]

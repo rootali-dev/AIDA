@@ -1,0 +1,16 @@
+[package]
+name = "kernel-space"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+aya-ebpf = { workspace = true }
+aya-log-ebpf = { workspace = true }
+common = { path = "../common" }
+
+[build-dependencies]
+which = { workspace = true }
+
+[[bin]]
+name = "kernel-space"
+path = "src/main.rs"
