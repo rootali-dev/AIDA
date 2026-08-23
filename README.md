@@ -4,11 +4,12 @@
 
 **Asynchronous, AI-driven, kernel-space packet filtering for the Linux network stack**
 
-![Kernel](https://img.shields.io/badge/Kernel-XDP%2FeBPF-1793d1?style=flat-square)
-![Core](https://img.shields.io/badge/Core-Rust%20(Aya)-dea584?style=flat-square)
-![Control Plane](https://img.shields.io/badge/Control%20Plane-Go-00ADD8?style=flat-square)
-![ML](https://img.shields.io/badge/Inference-Matrix--Free%20(m2cgen)-2ea44f?style=flat-square)
-![Status](https://img.shields.io/badge/Status-Phase%202%20In%20Progress-yellow?style=flat-square)
+![Kernel](https://img.shields.io/badge/Kernel_Plane-XDP%20%2F%20eBPF-1793d1?style=flat&logo=linux&logoColor=white)
+![Driver](https://img.shields.io/badge/Kernel_Driver-Rust%20(Aya)-CE412B?style=flat&logo=rust&logoColor=white)
+![Control Plane](https://img.shields.io/badge/Control_Plane-Go%201.22+-00ADD8?style=flat&logo=go&logoColor=white)
+![Inference](https://img.shields.io/badge/ML_Inference-Matrix--Free%20(m2cgen)-2ea44f?style=flat&logo=scikitlearn&logoColor=white)
+![Throughput](https://img.shields.io/badge/Throughput-14.88_Mpps_@_10Gbps-6f42c1?style=flat&logo=cloudflare&logoColor=white)
+![Status](https://img.shields.io/badge/Status-Phase_2_In_Progress-e3b341?style=flat)
 
 </div>
 
