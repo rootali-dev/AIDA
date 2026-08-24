@@ -1,17 +1,50 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"text/tabwriter"
 	"user-space/pkg/engine"
+	"user-space/pkg/types"
 
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "ai-ida",
-	Short: "AI-IDA — High-Performance Kernel Network Defense Subsystem",
+	Use:     "ai-ida-control",
+	Aliases: []string{"ai-ida", "ai-idactl"},
+	Short:   "AI-IDA — High-Performance Kernel Network Defense Subsystem",
+}
+
+var logLevelFlag string
+
+var monitorCmd = &cobra.Command{
+	Use:   "monitor",
+	Short: "Stream real-time eBPF packet telemetry with dynamic multi-level log filtering",
+	Long:  "Dynamically sets kernel log threshold in CONFIG_MAP and consumes the 1 MB RingBuffer stream (EVENTS), demuxing reason codes and packet metadata in real time.",
+	Run: func(cmd *cobra.Command, args []string) {
+		level, err := types.ParseLogLevel(logLevelFlag)
+		if err != nil {
+			fmt.Printf("❌ [Error] Invalid --log-level: %v\n", err)
+			os.Exit(1)
+		}
+
+		mgr, err := engine.LoadPinnedMaps()
+		if err != nil {
+			fmt.Printf("❌ [Error] Failed to load eBPF pinned maps: %v\n", err)
+			os.Exit(1)
+		}
+		defer mgr.Close()
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		if err := engine.MonitorEvents(ctx, mgr, level); err != nil {
+			fmt.Printf("❌ [Error] Monitor encountered error: %v\n", err)
+			os.Exit(1)
+		}
+	},
 }
 
 var statusCmd = &cobra.Command{
@@ -101,10 +134,39 @@ var portCmd = &cobra.Command{
 	},
 }
 
+var daemonCmd = &cobra.Command{
+	Use:     "daemon",
+	Aliases: []string{"run-agent"},
+	Short:   "Run the autonomous Phase 3 agent: telemetry -> aggregation -> ML inference -> auto-block",
+	Long: "Consumes the EVENTS ring buffer at full telemetry (CONFIG_MAP forced to debug), aggregates " +
+		"flows into 100ms windows, scores each window's feature vector against the matrix-free " +
+		"decision-tree ensemble, and auto-injects offending source IPs into REPUTATION_MAP when " +
+		"P(malicious) exceeds the configured threshold. Runs until Ctrl-C.",
+	Run: func(cmd *cobra.Command, args []string) {
+		mgr, err := engine.LoadPinnedMaps()
+		if err != nil {
+			fmt.Printf("❌ [Error] Failed to load eBPF pinned maps: %v\n", err)
+			os.Exit(1)
+		}
+		defer mgr.Close()
+
+		if err := engine.RunDaemon(context.Background(), mgr); err != nil {
+			fmt.Printf("❌ [Error] Daemon encountered a fatal error: %v\n", err)
+			os.Exit(1)
+		}
+	},
+}
+
+func init() {
+	monitorCmd.Flags().StringVarP(&logLevelFlag, "log-level", "l", "info", "Active log level threshold: debug, info, warn, error")
+}
+
 func main() {
+	rootCmd.AddCommand(monitorCmd)
 	rootCmd.AddCommand(statusCmd)
 	rootCmd.AddCommand(blockCmd)
 	rootCmd.AddCommand(portCmd)
+	rootCmd.AddCommand(daemonCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
