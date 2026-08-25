@@ -60,6 +60,16 @@ async fn main() -> anyhow::Result<()> {
         let _ = fs::remove_file(&path);
         let _ = map.pin(&path);
     }
+    if let Some(map) = ebpf.map_mut("CONFIG_MAP") {
+        let path = bpffs_dir.join("config_map");
+        let _ = fs::remove_file(&path);
+        let _ = map.pin(&path);
+    }
+    if let Some(map) = ebpf.map_mut("EVENTS") {
+        let path = bpffs_dir.join("events");
+        let _ = fs::remove_file(&path);
+        let _ = map.pin(&path);
+    }
 
     let Opt { iface, skb } = opt;
 

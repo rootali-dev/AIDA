@@ -10,7 +10,6 @@ mod filters;
 mod maps;
 mod parsers;
 
-use common::{eth_types, ip_proto, FlowPacketMeta};
 use aya_ebpf::{
     bindings::xdp_action,
     helpers::bpf_ktime_get_ns,
@@ -18,17 +17,105 @@ use aya_ebpf::{
     maps::lpm_trie::Key,
     programs::XdpContext,
 };
+use common::{eth_types, ip_proto, Action, DropReason, FlowPacketMeta};
 
 use cursor::Cursor;
 use filters::{check_rate_limit, is_port_blocked, validate_rfc_invariants};
-use maps::{EVENTS, REPUTATION_MAP};
+use maps::{CONFIG_MAP, EVENTS, LOG_RATE_LIMIT_MAP, REPUTATION_MAP};
 use parsers::{parse_arp, parse_ethernet, parse_ipv4, parse_tcp, parse_udp, ParsedPacket};
+
+const LOG_NANOS_PER_TOKEN: u64 = 100_000; // 1 token per 100 µs (10,000 logs/sec sustained)
+const LOG_BURST_CAPACITY: u64 = 1_000;    // Up to 1,000 logs burst
+
+#[inline(always)]
+fn check_log_rate_limit(now_ns: u64) -> bool {
+    if let Some(state_ptr) = LOG_RATE_LIMIT_MAP.get_ptr_mut(0) {
+        let state = unsafe { &mut *state_ptr };
+
+        let elapsed = now_ns.saturating_sub(state.last_update_ns);
+        let new_tokens = elapsed / LOG_NANOS_PER_TOKEN;
+
+        if new_tokens > 0 {
+            state.tokens = (state.tokens + new_tokens).min(LOG_BURST_CAPACITY);
+            state.last_update_ns = now_ns;
+        }
+
+        if state.tokens >= 1 {
+            state.tokens -= 1;
+            true
+        } else {
+            false
+        }
+    } else {
+        true
+    }
+}
+
+#[inline(always)]
+fn emit_and_return(
+    action: u32,
+    drop_reason: DropReason,
+    mut meta: FlowPacketMeta,
+    now_ns: u64,
+) -> Result<u32, ()> {
+    // 0. Dry-Run staging override: CONFIG_MAP[1] (0 = Enforce, 1 = Dry-Run).
+    // Any would-be XDP_DROP verdict is downgraded to XDP_PASS at the wire,
+    // but telemetry still records Action::WouldDrop with the real
+    // drop_reason, so a new ruleset can be validated against live traffic
+    // with zero blast radius before flipping back to Enforce. This does NOT
+    // change which check fires first or short-circuit the single-exit
+    // pipeline — it only changes the verdict emitted at the point a verdict
+    // was already about to be returned.
+    let dry_run = matches!(CONFIG_MAP.get(1), Some(val) if *val == 1);
+
+    let (effective_action, telemetry_action) = if action == xdp_action::XDP_DROP {
+        if dry_run {
+            (xdp_action::XDP_PASS, Action::WouldDrop)
+        } else {
+            (xdp_action::XDP_DROP, Action::Drop)
+        }
+    } else {
+        (action, Action::Pass)
+    };
+
+    // 1. Fast-path check: CONFIG_MAP threshold
+    let threshold = match CONFIG_MAP.get(0) {
+        Some(val) => *val,
+        None => 0,
+    };
+
+    // If threshold is 0 (OFF), bypass immediately without telemetry
+    if threshold == 0 {
+        return Ok(effective_action);
+    }
+
+    let severity = drop_reason.severity() as u32;
+    // If event severity is below the threshold, skip logging
+    if severity < threshold {
+        return Ok(effective_action);
+    }
+
+    // 2. RingBuffer drop-storm protection: log rate-limiter
+    if !check_log_rate_limit(now_ns) {
+        return Ok(effective_action);
+    }
+
+    // 3. Finalize metadata fields
+    meta.action = telemetry_action as u8;
+    meta.drop_reason = drop_reason as u8;
+    meta.timestamp_ns = now_ns;
+
+    // 4. Single centralized emission to RingBuffer
+    let _ = EVENTS.output::<FlowPacketMeta>(&meta, 0);
+
+    Ok(effective_action)
+}
 
 #[xdp]
 pub fn ai_ida_firewall(ctx: XdpContext) -> u32 {
     match try_ai_ida_firewall(&ctx) {
         Ok(action) => action,
-        Err(_) => xdp_action::XDP_DROP,     
+        Err(_) => xdp_action::XDP_DROP,
     }
 }
 
@@ -37,91 +124,114 @@ fn try_ai_ida_firewall(ctx: &XdpContext) -> Result<u32, ()> {
     let mut cursor = Cursor::new(ctx);
     let now_ns = unsafe { bpf_ktime_get_ns() };
 
-    // 1. parsing Ethernet header and optional VLAN tags (up to 2)
-    let l2 = parse_ethernet(&mut cursor)?;
+    let mut meta = FlowPacketMeta {
+        src_ip: 0,
+        dst_ip: 0,
+        src_port: 0,
+        dst_port: 0,
+        protocol: 0,
+        tcp_flags: 0,
+        action: Action::Pass as u8,
+        drop_reason: DropReason::None as u8,
+        timestamp_ns: now_ns,
+    };
+
+    // 1. Parsing Ethernet header and optional VLAN tags
+    let l2 = match parse_ethernet(&mut cursor) {
+        Ok(l2) => l2,
+        Err(_) => {
+            return emit_and_return(xdp_action::XDP_DROP, DropReason::EthParseFailed, meta, now_ns);
+        }
+    };
 
     match l2.eth_type {
         eth_types::IPV4 => {
-            // 2. parsing IPv4 header and checking for fragmentation
-            let l3 = parse_ipv4(&mut cursor)?;
-
-            // if the packet is a fragment, we only check the rate limit and pass it to the kernel stack
-            if l3.is_fragment {
-                check_rate_limit(l3.src_ip, now_ns)?;
-                return Ok(xdp_action::XDP_PASS);
-            }
-
-            let mut packet = ParsedPacket {
-                src_ip: l3.src_ip,
-                dst_ip: l3.dst_ip,
-                src_port: 0,
-                dst_port: 0,
-                protocol: l3.proto,
-                tcp_flags: 0,
-                length: l3.total_len,
-                is_fragment: false,
+            // 2. Parsing IPv4 header
+            let l3 = match parse_ipv4(&mut cursor) {
+                Ok(l3) => l3,
+                Err(_) => {
+                    return emit_and_return(xdp_action::XDP_DROP, DropReason::Ipv4ParseFailed, meta, now_ns);
+                }
             };
 
-            // 3. parsing Layer 4 header
+            meta.src_ip = l3.src_ip;
+            meta.dst_ip = l3.dst_ip;
+            meta.protocol = l3.proto;
+
+            // Handle fragments: rate limit check then pass to stack
+            if l3.is_fragment {
+                if check_rate_limit(l3.src_ip, now_ns).is_err() {
+                    return emit_and_return(xdp_action::XDP_DROP, DropReason::RateLimited, meta, now_ns);
+                }
+                return emit_and_return(xdp_action::XDP_PASS, DropReason::None, meta, now_ns);
+            }
+
+            // 3. Parsing Layer 4 header
             match l3.proto {
                 ip_proto::TCP => {
-                    let tcp = parse_tcp(&mut cursor)?;
-                    packet.src_port = tcp.src_port;
-                    packet.dst_port = tcp.dst_port;
-                    packet.tcp_flags = tcp.flags;
+                    let tcp = match parse_tcp(&mut cursor) {
+                        Ok(tcp) => tcp,
+                        Err(_) => {
+                            return emit_and_return(xdp_action::XDP_DROP, DropReason::TcpParseFailed, meta, now_ns);
+                        }
+                    };
+                    meta.src_port = tcp.src_port;
+                    meta.dst_port = tcp.dst_port;
+                    meta.tcp_flags = tcp.flags;
                 }
                 ip_proto::UDP => {
-                    let udp = parse_udp(&mut cursor)?;
-                    packet.src_port = udp.src_port;
-                    packet.dst_port = udp.dst_port;
+                    let udp = match parse_udp(&mut cursor) {
+                        Ok(udp) => udp,
+                        Err(_) => {
+                            return emit_and_return(xdp_action::XDP_DROP, DropReason::UdpParseFailed, meta, now_ns);
+                        }
+                    };
+                    meta.src_port = udp.src_port;
+                    meta.dst_port = udp.dst_port;
                 }
                 _ => {}
             }
 
-            // 4. checking RFC structural rules (Land attack, Null, Xmas, SYN-FIN)
-            validate_rfc_invariants(packet.src_ip, packet.dst_ip, packet.protocol, packet.tcp_flags)?;
+            // 4. Checking RFC structural rules (Land attack, NULL, Xmas, SYN-FIN)
+            if let Err(rfc_reason) = validate_rfc_invariants(meta.src_ip, meta.dst_ip, meta.protocol, meta.tcp_flags) {
+                return emit_and_return(xdp_action::XDP_DROP, rfc_reason, meta, now_ns);
+            }
 
-            // 5. checking blacklist in LPM_TRIE using the standard Aya Key structure
-            let lpm_key = LpmIpv4Key::new(packet.src_ip, 32);
+            // 5. Checking blacklist in LPM_TRIE
+            let lpm_key = Key::new(32, meta.src_ip);
             if let Some(action) = REPUTATION_MAP.get(&lpm_key) {
                 if *action == 1 {
-                    return Ok(xdp_action::XDP_DROP);
+                    return emit_and_return(xdp_action::XDP_DROP, DropReason::BlacklistHit, meta, now_ns);
                 }
             }
 
-            // 5. Checking Port Gate
-            if is_port_blocked(packet.dst_port) {
-                return Ok(xdp_action::XDP_DROP);
+            // 6. Checking Port Gate (direction-aware: only new inbound SYN
+            // requests / non-ephemeral UDP are subject to gating — see
+            // filters::port_gate for the ACK/ephemeral-port exemptions)
+            if is_port_blocked(meta.protocol, meta.dst_port, meta.tcp_flags) {
+                return emit_and_return(xdp_action::XDP_DROP, DropReason::PortBlocked, meta, now_ns);
             }
 
-            // 7. aplaying lockless rate-limiting using LRU_PERCPU_HASH map
-            check_rate_limit(packet.src_ip, now_ns)?;
+            // 7. Applying lockless rate-limiting using LRU_PERCPU_HASH map
+            if check_rate_limit(meta.src_ip, now_ns).is_err() {
+                return emit_and_return(xdp_action::XDP_DROP, DropReason::RateLimited, meta, now_ns);
+            }
 
-            // 8. sending telemetry data (24 bytes) to the ring buffer (with explicit generic type specification)
-            let meta = FlowPacketMeta {
-                src_ip: packet.src_ip,
-                dst_ip: packet.dst_ip,
-                src_port: packet.src_port,
-                dst_port: packet.dst_port,
-                length: packet.length,
-                protocol: packet.protocol,
-                tcp_flags: packet.tcp_flags,
-                timestamp_ns: now_ns,
-            };
-
-            let _ = EVENTS.output::<FlowPacketMeta>(&meta, 0);
+            // 8. Normal clean pass
+            emit_and_return(xdp_action::XDP_PASS, DropReason::None, meta, now_ns)
         }
         eth_types::ARP => {
             // Check health ARP
-            parse_arp(&mut cursor)?;
+            match parse_arp(&mut cursor) {
+                Ok(_) => emit_and_return(xdp_action::XDP_PASS, DropReason::None, meta, now_ns),
+                Err(_) => emit_and_return(xdp_action::XDP_DROP, DropReason::ArpParseFailed, meta, now_ns),
+            }
         }
         _ => {
-            // other packets are passed to the kernel stack for further processing
-            return Ok(xdp_action::XDP_PASS);
+            // Other packets are passed to kernel stack
+            emit_and_return(xdp_action::XDP_PASS, DropReason::None, meta, now_ns)
         }
     }
-
-    Ok(xdp_action::XDP_PASS)
 }
 
 #[cfg(target_arch = "bpf")]
