@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"user-space/pkg/types"
@@ -115,6 +116,63 @@ func (m *MapManager) BlockIP(cidr string) error {
 	}
 
 	return nil
+}
+
+// UnblockIP removes a previously-blocked CIDR/host from REPUTATION_MAP. This
+// is the counterpart the TTL Janitor (engine/feedback.go) calls when a
+// dynamic auto-block expires — without it, every ML-triggered block would be
+// permanent, which is exactly the lockout risk the Janitor exists to close.
+//
+// Deleting an already-absent key is treated as success (idempotent): the
+// Janitor and an operator's manual `ai-ida-control unblock` could race
+// harmlessly on the same expiring entry, and neither should surface as an
+// error.
+func (m *MapManager) UnblockIP(cidr string) error {
+	key, err := types.NewLpmKey(cidr)
+	if err != nil {
+		return err
+	}
+
+	if err := m.reputationMap.Delete(key); err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			return nil
+		}
+		return fmt.Errorf("failed to remove IP from BPF LPM_TRIE: %w", err)
+	}
+
+	return nil
+}
+
+// SetDryRun toggles CONFIG_MAP[1] (DRY_RUN_MODE). true = Dry-Run (every
+// would-be XDP_DROP is downgraded to XDP_PASS at the wire, with
+// Action::WouldDrop telemetry); false = Enforce (real drops).
+func (m *MapManager) SetDryRun(enabled bool) error {
+	var key uint32 = 1
+	var val uint32
+	if enabled {
+		val = 1
+	}
+	if err := m.configMap.Put(key, val); err != nil {
+		return fmt.Errorf("failed to update config_map dry-run flag: %w", err)
+	}
+	return nil
+}
+
+// GetDryRun reads CONFIG_MAP[1]. Kernels built before this map was expanded
+// to max_entries=2 will return ebpf.ErrKeyNotExist here; callers should treat
+// that the same as "dry-run unsupported / disabled" (false, nil) rather than
+// a hard failure, since it's a legitimate pre-upgrade kernel state, not a
+// runtime error.
+func (m *MapManager) GetDryRun() (bool, error) {
+	var key uint32 = 1
+	var val uint32
+	if err := m.configMap.Lookup(key, &val); err != nil {
+		if errors.Is(err, ebpf.ErrKeyNotExist) {
+			return false, nil
+		}
+		return false, fmt.Errorf("failed to lookup config_map dry-run flag: %w", err)
+	}
+	return val == 1, nil
 }
 
 func (m *MapManager) SetPortStatus(port uint16, allow bool) error {
