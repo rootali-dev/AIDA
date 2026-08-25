@@ -48,16 +48,56 @@ type FeatureVector struct {
 	PortEntropyBits float64
 }
 
+// singleDirectionRatioFloor is the minimum SYN or ACK+PSH sample count
+// required before trusting the flag-composition fallback ratio below. Below
+// this, a 1-2 packet flow could show SYN/(ACK+PSH) = 1/0 = 1 (clamped) or
+// similarly noisy extremes that carry no real signal.
+const singleDirectionRatioFloor = 5
+
 // ToFeatureVector projects the aggregator's output into ML input space.
+//
+// Single-direction deployment fallback: an XDP hook that only ever observes
+// one side of a conversation (edge/uplink sensor rather than an inline
+// bridge — see aggregator package doc) always reports ReverseCount == 0,
+// which makes the raw packet-count RatioFlow equal ForwardCount for every
+// flow regardless of legitimacy — a guaranteed false positive generator
+// against synFloodTree's asymmetry gate. When that condition is detected on
+// a TCP flow, we substitute a TCP flag-composition ratio
+// (SYN / (ACK+PSH)) as a materially better proxy for "is this one-sided
+// traffic actually a flood of new-connection attempts, or just a legitimate
+// established session whose replies we structurally can't see": a real SYN
+// flood skews overwhelmingly toward bare SYN packets, while a legitimate
+// session (even ingress-only) is dominated by ACK/PSH data packets.
 func ToFeatureVector(f aggregator.FlowFeatures) FeatureVector {
+	ratio := f.RatioFlow
+
+	if f.ReverseCount == 0 && f.Protocol == 6 {
+		samples := f.SynCount + f.AckPshCount
+		if samples >= singleDirectionRatioFloor {
+			ratio = float64(f.SynCount) / float64(maxU64(f.AckPshCount, 1))
+		}
+		// Below the floor: fall through and keep the raw packet-count ratio.
+		// It's still not a great signal at low N, but synFloodTree's own
+		// PacketCount < 20 gate already suppresses low-volume flows before
+		// RatioFlow is ever consulted, so this is not a live false-positive
+		// path — just a documented "no better data available" fallback.
+	}
+
 	return FeatureVector{
 		PacketCount:     float64(f.PacketCount),
 		ForwardCount:    float64(f.ForwardCount),
 		ReverseCount:    float64(f.ReverseCount),
 		IATStdDevNS:     f.IATStdDevNS,
-		RatioFlow:       f.RatioFlow,
+		RatioFlow:       ratio,
 		PortEntropyBits: f.PortEntropyBits,
 	}
+}
+
+func maxU64(a, b uint64) uint64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // Result is the classifier's verdict for one flow window.
