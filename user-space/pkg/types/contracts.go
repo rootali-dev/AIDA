@@ -148,6 +148,12 @@ const (
 	ActionPass     Action = 2
 	ActionTx       Action = 3
 	ActionRedirect Action = 4
+	// ActionWouldDrop marks a Dry-Run staging verdict: the enforcing policy
+	// would have issued XDP_DROP, but CONFIG_MAP[1] (DRY_RUN_MODE) was active
+	// in the kernel, so the packet was actually passed to the wire. Distinct
+	// from ActionDrop so operators can audit "what would this ruleset have
+	// blocked" without any real enforcement risk.
+	ActionWouldDrop Action = 5
 )
 
 func (a Action) String() string {
@@ -160,6 +166,8 @@ func (a Action) String() string {
 		return "TX"
 	case ActionRedirect:
 		return "REDIRECT"
+	case ActionWouldDrop:
+		return "WOULD_DROP"
 	default:
 		return fmt.Sprintf("ACTION_%d", a)
 	}
@@ -175,6 +183,8 @@ func (a Action) ColoredBadge() string {
 		return "\033[44;97m  TX  \033[0m"
 	case ActionRedirect:
 		return "\033[45;97m RDRT \033[0m"
+	case ActionWouldDrop:
+		return "\033[43;30m WDRP \033[0m" // Yellow background, black text for contrast
 	default:
 		return fmt.Sprintf("[%s]", a.String())
 	}

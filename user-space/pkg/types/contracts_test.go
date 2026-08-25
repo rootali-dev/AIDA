@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/binary"
+	"fmt"
 	"testing"
 )
 
@@ -86,5 +87,45 @@ func TestParseLogLevel(t *testing.T) {
 		if lvl != tt.expected {
 			t.Errorf("ParseLogLevel(%q) = %v, want %v", tt.input, lvl, tt.expected)
 		}
+	}
+}
+
+func TestActionWouldDrop(t *testing.T) {
+	if ActionWouldDrop != 5 {
+		t.Errorf("expected ActionWouldDrop == 5 to match common::Action::WouldDrop wire value, got %d", ActionWouldDrop)
+	}
+	if ActionWouldDrop.String() != "WOULD_DROP" {
+		t.Errorf("expected String() == WOULD_DROP, got %q", ActionWouldDrop.String())
+	}
+	badge := ActionWouldDrop.ColoredBadge()
+	if badge == "" || badge == fmt.Sprintf("[%s]", ActionWouldDrop.String()) {
+		t.Errorf("expected a real colored badge for ActionWouldDrop, fell through to default: %q", badge)
+	}
+}
+
+func TestFlowPacketMetaBinaryUnmarshalWouldDrop(t *testing.T) {
+	// Same wire fixture as TestFlowPacketMetaBinaryUnmarshal but with
+	// Action = 5 (WouldDrop) — guards against the dry-run wire value ever
+	// silently regressing to the fmt.Sprintf("ACTION_%d", ...) fallback.
+	raw := make([]byte, 24)
+	binary.BigEndian.PutUint32(raw[0:4], 0xC0A80164)
+	binary.BigEndian.PutUint32(raw[4:8], 0x0A000001)
+	binary.LittleEndian.PutUint16(raw[8:10], 443)
+	binary.LittleEndian.PutUint16(raw[10:12], 80)
+	raw[12] = 6
+	raw[13] = 0x02 // SYN only
+	raw[14] = 5    // Action: WouldDrop
+	raw[15] = 20   // DropReason: PortBlocked
+	binary.LittleEndian.PutUint64(raw[16:24], 42)
+
+	var meta FlowPacketMeta
+	if err := meta.UnmarshalBinary(raw); err != nil {
+		t.Fatalf("UnmarshalBinary failed: %v", err)
+	}
+	if Action(meta.Action) != ActionWouldDrop {
+		t.Errorf("expected ActionWouldDrop, got %v", Action(meta.Action))
+	}
+	if Action(meta.Action).String() != "WOULD_DROP" {
+		t.Errorf("expected WOULD_DROP string, got %s", Action(meta.Action).String())
 	}
 }
