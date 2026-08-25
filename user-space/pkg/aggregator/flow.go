@@ -44,6 +44,31 @@ const (
 	maxPortsPerSrcIP = 256   // distinct dst ports tracked per source IP before overflow bucket
 	overflowPortKey  = 0xFFFF
 	outputBufferSize = 4096
+
+	// minIATSamplesForVariance guards against small-sample variance collapse.
+	// Welford's algorithm is statistically unreliable at low N: a 2-5 packet
+	// health-check probe or an HTTP/2 multiplexed burst can produce a
+	// near-zero IAT std-dev purely from having too few samples to show real
+	// spread, not because the sender is a mechanically-timed bot. Below this
+	// threshold we report a neutral baseline instead of the (misleading)
+	// computed value — see neutralIATStdDevNS.
+	minIATSamplesForVariance = 30
+
+	// neutralIATStdDevNS is returned in place of a statistically unreliable
+	// low-N variance estimate. Chosen comfortably above synFloodTree's ~2ms
+	// suspicion threshold (inference/trees.go) so an under-sampled flow reads
+	// as "jittered/organic" by default rather than "mechanically periodic" —
+	// i.e. the guard fails open toward NOT flagging, which is the correct
+	// direction for a false-positive remediation control.
+	neutralIATStdDevNS = 5_000_000.0 // 5ms
+
+	// TCP control-flag bit values (mirrors common::tcp_flags on the Rust
+	// side) used to derive the SYN / (ACK+PSH) fallback ratio in inference.
+	tcpFlagSYN = 0x02
+	tcpFlagPSH = 0x08
+	tcpFlagACK = 0x10
+
+	protocolTCP = 6
 )
 
 // FlowKey is the canonical, direction-independent 5-tuple. Both directions of
@@ -95,6 +120,8 @@ type flowAccumulator struct {
 	packetCount    uint64
 	forwardCount   uint64
 	reverseCount   uint64
+	synCount       uint64 // TCP packets with SYN set (any ACK state)
+	ackPshCount    uint64 // TCP packets with ACK or PSH set — established/data traffic
 	lastTimestamp  uint64 // 0 == unset
 	iatMean, iatM2 float64
 	iatSamples     uint64
@@ -115,6 +142,15 @@ func (fa *flowAccumulator) observe(m *types.FlowPacketMeta, srcIsLo bool) {
 		fa.reverseCount++
 	}
 
+	if m.Protocol == protocolTCP {
+		if m.TCPFlags&tcpFlagSYN != 0 {
+			fa.synCount++
+		}
+		if m.TCPFlags&(tcpFlagACK|tcpFlagPSH) != 0 {
+			fa.ackPshCount++
+		}
+	}
+
 	if fa.lastTimestamp != 0 && m.TimestampNS > fa.lastTimestamp {
 		iat := float64(m.TimestampNS - fa.lastTimestamp)
 		fa.iatSamples++
@@ -127,8 +163,8 @@ func (fa *flowAccumulator) observe(m *types.FlowPacketMeta, srcIsLo bool) {
 }
 
 func (fa *flowAccumulator) iatStdDevNS() float64 {
-	if fa.iatSamples < 1 {
-		return 0
+	if fa.iatSamples < minIATSamplesForVariance {
+		return neutralIATStdDevNS
 	}
 	variance := fa.iatM2 / float64(fa.iatSamples)
 	if variance < 0 {
@@ -188,8 +224,10 @@ type FlowFeatures struct {
 	PacketCount      uint64 // sample count within kernel's log-rate budget — see package doc
 	ForwardCount     uint64
 	ReverseCount     uint64
+	SynCount         uint64 // TCP SYN packets observed this window (0 for non-TCP flows)
+	AckPshCount      uint64 // TCP ACK|PSH packets observed this window (0 for non-TCP flows)
 	IATStdDevNS      float64
-	RatioFlow        float64 // ForwardCount / max(ReverseCount, 1)
+	RatioFlow        float64 // ForwardCount / max(ReverseCount, 1); see inference.ToFeatureVector for the single-direction SYN/(ACK+PSH) fallback layered on top
 	PortEntropyBits  float64 // entropy of dst ports touched by SrcIP this window
 	WindowStart      time.Time
 	WindowEnd        time.Time
@@ -349,6 +387,8 @@ func (a *Aggregator) flush() {
 				PacketCount:     fa.packetCount,
 				ForwardCount:    fa.forwardCount,
 				ReverseCount:    fa.reverseCount,
+				SynCount:        fa.synCount,
+				AckPshCount:     fa.ackPshCount,
 				IATStdDevNS:     fa.iatStdDevNS(),
 				RatioFlow:       float64(fa.forwardCount) / float64(max64(fa.reverseCount, 1)),
 				PortEntropyBits: entropy,
