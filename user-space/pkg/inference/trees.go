@@ -1,4 +1,4 @@
-// Package inference implements matrix-free ML scoring: native Go branch
+// SPDX-License-Identifier: Apache-2.0\n// SPDX-License-Identifier: Apache-2.0\n// Package inference implements matrix-free ML scoring: native Go branch
 // evaluation over aggregator.FlowFeatures, with no matrix/tensor runtime and
 // no CGO/Python dependency.
 //

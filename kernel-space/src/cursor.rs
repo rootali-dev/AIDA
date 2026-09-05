@@ -1,4 +1,4 @@
-//! kernel-space/src/cursor.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/cursor.rs
 //! Zero-cost, verifier-safe packet memory cursor for dynamic byte-stream parsing.
 
 use aya_ebpf::programs::XdpContext;

@@ -1,4 +1,4 @@
-//! kernel-space/src/parsers/tcp.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/parsers/tcp.rs
 
 use crate::cursor::Cursor;
 

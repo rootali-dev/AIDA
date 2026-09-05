@@ -1,4 +1,4 @@
-//! kernel-space/src/parsers/mod.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/parsers/mod.rs
 
 #![allow(unused_imports)]
 

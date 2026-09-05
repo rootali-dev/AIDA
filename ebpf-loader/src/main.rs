@@ -1,5 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only\n// SPDX-License-Identifier: GPL-2.0-only
 //! ebpf-loader/src/main.rs
-//! لودر فایروال با قابلیت Pinning جداول در BPF Filesystem.
 
 use anyhow::Context as _;
 use aya::programs::{Xdp, XdpFlags};

@@ -1,4 +1,4 @@
-use anyhow::Context as _;
+// SPDX-License-Identifier: GPL-2.0-only\nuse anyhow::Context as _;
 use aya_build::{build_ebpf, Package, Toolchain};
 
 fn main() -> anyhow::Result<()> {

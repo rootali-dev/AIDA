@@ -1,4 +1,4 @@
-//! kernel-space/src/filters/rate_limiter.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/filters/rate_limiter.rs
 
 use crate::maps::RATE_LIMIT_MAP;
 use common::RateLimitState;

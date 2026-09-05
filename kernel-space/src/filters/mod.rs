@@ -1,4 +1,4 @@
-//! kernel-space/src/filters/mod.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/filters/mod.rs
 
 pub mod port_gate;
 pub mod rate_limiter;

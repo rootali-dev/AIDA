@@ -1,4 +1,4 @@
-//! kernel-space/src/filters/port_gate.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/filters/port_gate.rs
 
 use crate::maps::PORT_GATE_MAP;
 use common::{ip_proto, tcp_flags};

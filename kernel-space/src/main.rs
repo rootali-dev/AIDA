@@ -1,4 +1,4 @@
-//! kernel-space/src/main.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/main.rs
 
 #![no_std]
 #![no_main]

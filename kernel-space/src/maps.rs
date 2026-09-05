@@ -1,4 +1,4 @@
-//! kernel-space/src/maps.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/maps.rs
 //! eBPF map definitions for static enforcement policies and telemetry ring buffers.
 
 use aya_ebpf::{

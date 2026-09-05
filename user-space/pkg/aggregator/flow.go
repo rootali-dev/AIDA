@@ -1,4 +1,4 @@
-// Package aggregator implements the Phase 3 rolling-window flow aggregator.
+// SPDX-License-Identifier: Apache-2.0\n// SPDX-License-Identifier: Apache-2.0\n// Package aggregator implements the Phase 3 rolling-window flow aggregator.
 //
 // DESIGN NOTE — telemetry visibility (read before tuning thresholds):
 // kernel-space/src/main.rs::emit_and_return() gates ALL ring buffer emission

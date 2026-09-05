@@ -1,4 +1,4 @@
-//! kernel-space/src/filters/rfc_invariants.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/filters/rfc_invariants.rs
 
 use common::{tcp_flags, DropReason};
 

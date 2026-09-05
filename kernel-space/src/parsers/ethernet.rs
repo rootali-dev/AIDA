@@ -1,4 +1,4 @@
-//! kernel-space/src/parsers/ethernet.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/parsers/ethernet.rs
 
 use crate::cursor::Cursor;
 use common::eth_types;

@@ -1,4 +1,4 @@
-package engine
+// SPDX-License-Identifier: Apache-2.0\n// SPDX-License-Identifier: Apache-2.0\npackage engine
 
 import (
 	"fmt"

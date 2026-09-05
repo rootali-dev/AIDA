@@ -1,4 +1,4 @@
-//! kernel-space/src/parsers/ipv6.rs
+// SPDX-License-Identifier: GPL-2.0-only\n//! kernel-space/src/parsers/ipv6.rs
 
 use crate::cursor::Cursor;
 

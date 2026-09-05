@@ -1,4 +1,4 @@
-package main
+// SPDX-License-Identifier: Apache-2.0\n// SPDX-License-Identifier: Apache-2.0\npackage main
 
 import (
 	"context"

@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛡️ AI-IDA — Intelligent Defense Architecture
+# AIDA — Intelligent Defense Architecture
 
 **Asynchronous, AI-driven, kernel-space packet filtering for the Linux network stack**
 
@@ -15,16 +15,16 @@
 
 ---
 
-AI-IDA (**I**ntelligent **D**efense **A**rchitecture) is an ultra-high-performance, programmable Linux kernel firewall subsystem engineered to neutralize volumetric and structural cyberattacks — DDoS floods, port scans, protocol amplification — directly at **line rate**, before they ever touch host CPU cycles.
+AIDA (**I**ntelligent **D**efense **A**rchitecture) is an ultra-high-performance, programmable Linux kernel firewall subsystem engineered to neutralize volumetric and structural cyberattacks — DDoS floods, port scans, protocol amplification — directly at **line rate**, before they ever touch host CPU cycles.
 
 It fuses **XDP** (eXpress Data Path) interception via **Rust/Aya** at the NIC driver layer with a non-blocking **Go** control plane driven by a matrix-free, compiled machine learning pipeline. Malicious traffic is dropped in nanoseconds, leaving host resources — even on budget hardware (Intel Core i3 class) — completely untouched.
 
 > **Core Engineering Philosophy — Decouple Computation from the Data Path.**
-> Traditional firewalls degrade under high PPS due to `sk_buff` allocation overhead and context-switch cost in the Linux network stack. AI-IDA bypasses this entirely via an asynchronous, three-tier architecture: deterministic kernel-space enforcement, lockless telemetry transport, and out-of-band user-space inference.
+> Traditional firewalls degrade under high PPS due to `sk_buff` allocation overhead and context-switch cost in the Linux network stack. AIDA bypasses this entirely via an asynchronous, three-tier architecture: deterministic kernel-space enforcement, lockless telemetry transport, and out-of-band user-space inference.
 
 ---
 
-## 🧬 Architecture Overview
+## Architecture Overview
 
 ```mermaid
 graph TD
@@ -67,7 +67,7 @@ graph TD
 ```
 ---
 
-## ⚡ Core Engineering Features
+## Core Engineering Features
 
 ### 1. In-Driver Ingress Filtering (Rust / eBPF)
 - **Zero-Allocation Dropping** — malicious packets are destroyed via `XDP_DROP` before the kernel allocates an `sk_buff`, eliminating allocator pressure under flood conditions.
@@ -88,9 +88,9 @@ graph TD
 
 ---
 
-## 🔬 Mathematical Feature Engineering
+## Mathematical Feature Engineering
 
-AI-IDA classifies **flows**, not individual packets, via a dynamic Time-Window Flow Aggregator (100ms intervals) — neutralizing botnets that rely on IP rotation or spoofing to evade per-packet heuristics.
+AIDA classifies **flows**, not individual packets, via a dynamic Time-Window Flow Aggregator (100ms intervals) — neutralizing botnets that rely on IP rotation or spoofing to evade per-packet heuristics.
 
 ### Packet Inter-Arrival Time Standard Deviation ($IAT_{std}$)
 
@@ -112,7 +112,7 @@ $$H(P) = -\sum_{i=1}^{n} P(p_i)\log_2 P(p_i)$$
 
 ---
 
-## 🎯 Production Mitigation Matrix
+## roduction Mitigation Matrix
 
 | Target Vector | Detection Metric | Mitigating Kernel Action |
 |---|---|---|
@@ -122,19 +122,19 @@ $$H(P) = -\sum_{i=1}^{n} P(p_i)\log_2 P(p_i)$$
 
 ---
 
-## 🛣️ Roadmap & Implementation Milestones
+## Roadmap & Implementation Milestones
 
-### Phase 1 — Zero-Feature Ingress Pipeline ✅ *Completed*
+### Phase 1 — Zero-Feature Ingress Pipeline *Completed*
 - [x] Cross-compilation toolchain: `bpf-linker` + Rust compiler target
 - [x] Minimal XDP driver (Aya) — generic pass-through (`XDP_PASS`)
 - [x] Raw telemetry line via lockless eBPF Ring Buffer → Go agent
 
-### Phase 2 — Protocol Parsing & Static Controls 🔄 *In Progress*
+### Phase 2 — Protocol Parsing & Static Controls  *In Progress*
 - [ ] Robust L3/L4 header parsing in Rust driver space, verifier-safe
 - [ ] $O(1)$ hash map configuration for port gating + static thresholds
 - [ ] Kernel-level token-bucket primitives for stateless rate limiting
 
-### Phase 3 — ML Integration & Structural Matching 🎯 *Target: Late Summer 2026*
+### Phase 3 — ML Integration & Structural Matching *Target: Late Summer 2026*
 - [ ] Finalize offline Python training pipeline on non-linear behavioral profiles
 - [ ] Implement `m2cgen` code-generation pipe → native Go logic blocks
 - [ ] Deploy automated pattern extraction: user-space AI insight → kernel-level eBPF signature constraints
@@ -142,6 +142,24 @@ $$H(P) = -\sum_{i=1}^{n} P(p_i)\log_2 P(p_i)$$
 > **Performance Verification Target**
 > Maximum Processing Latency (kernel-space match): **< 10 ns**
 > Target Line-Rate Capacity: **10 Gbps (14.8M PPS)** sustained on budget processor layouts (Intel Core i3 class)
+
+---
+
+## License & Dual-Licensing Policy
+
+This project uses a **Dual-Licensing Model** to comply with Linux kernel requirements while keeping user-space components flexible for integration:
+
+* **Kernel Space (`/ebpf`, `/bpf`):** Licensed under **[GNU General Public License v2.0](LICENSE-GPL)** (`GPL-2.0-only`). This ensures full compatibility with Linux kernel helpers and eBPF runtime standards.
+* **User Space (`/cmd`, `/pkg`, Control Plane):** Licensed under **[Apache License 2.0](LICENSE-APACHE)**. This allows permissive integration with cloud-native tooling, API services, and enterprise management systems.
+
+---
+
+## Contact & Support
+
+* **Maintainer:** Ali Shahmohammadi ([@rootali-dev](https://github.com/rootali-dev))
+* **Email:** [ali@rootali.xyz](mailto:ali.shahmohammadi@example.com)
+* **GitHub Repository:** [https://github.com/rootali-dev/AIDA](https://github.com/rootali-dev/AIDA)
+* **Issue Tracker:** For bug reports and feature requests, please open an [Issue](https://github.com/rootali-dev/AIDA/issues).
 
 ---
 
